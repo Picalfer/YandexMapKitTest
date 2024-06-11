@@ -18,12 +18,18 @@ import com.yandex.mapkit.directions.driving.DrivingRouterType
 import com.yandex.mapkit.directions.driving.DrivingSession
 import com.yandex.mapkit.directions.driving.VehicleOptions
 import com.yandex.mapkit.geometry.Point
+import com.yandex.mapkit.location.Location
+import com.yandex.mapkit.location.LocationListener
+import com.yandex.mapkit.location.LocationManager
+import com.yandex.mapkit.location.LocationStatus
 import com.yandex.mapkit.map.CameraPosition
 import com.yandex.mapkit.map.Map
 import com.yandex.mapkit.map.MapObjectCollection
+import com.yandex.mapkit.map.MapObjectTapListener
 import com.yandex.mapkit.map.PolylineMapObject
 import com.yandex.mapkit.mapview.MapView
 import com.yandex.runtime.Error
+import com.yandex.runtime.image.ImageProvider
 import com.yandex.runtime.network.NetworkError
 
 class MainActivity : AppCompatActivity() {
@@ -31,8 +37,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var mapView: MapView
     private lateinit var map: Map
-    private lateinit var placemarksCollection: MapObjectCollection
     private lateinit var routesCollection: MapObjectCollection
+    private lateinit var locationManager: LocationManager
 
     private var routes = emptyList<DrivingRoute>()
         set(value) {
@@ -45,6 +51,7 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater).also { setContentView(it.root) }
 
         getPermissions()
+        locationManager = MapKitFactory.getInstance().createLocationManager()
 
         mapView = binding.mapview
         map = mapView.mapWindow.map
@@ -56,22 +63,34 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
-        placemarksCollection = map.mapObjects.addCollection()
         routesCollection = map.mapObjects.addCollection()
 
-        map.move(CameraPosition(Point(51.654232, 39.116771), 14.0f, 0.0f, 0.0f))
+        binding.btnUpdate.setOnClickListener {
+            locationManager.requestSingleUpdate(object : LocationListener {
+                override fun onLocationUpdated(location: Location) {
+                    val currentPosition =
+                        Point(location.position.latitude, location.position.longitude)
+                    buildRoute(currentPosition, GOAL_POINT)
+                }
+
+                override fun onLocationStatusUpdated(locationStatus: LocationStatus) {}
+            })
+
+        }
+    }
+
+    private fun buildRoute(startPoint: Point, goalPoint: Point) {
+        setPlacemarks(startPoint, goalPoint)
+        moveCamera(startPoint)
 
         val drivingRouterListener = object : DrivingSession.DrivingRouteListener {
             override fun onDrivingRoutes(drivingRoutes: MutableList<DrivingRoute>) {
-                // Handle request routes success ...
                 Toast.makeText(this@MainActivity, "Успешно построен маршрут", Toast.LENGTH_SHORT)
                     .show()
                 routes = drivingRoutes
             }
 
             override fun onDrivingRoutesError(error: Error) {
-                // Handle request routes error ...
-
                 when (error) {
                     is NetworkError -> Toast.makeText(
                         this@MainActivity,
@@ -89,18 +108,14 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+
         val drivingRouter =
             DirectionsFactory.getInstance().createDrivingRouter(DrivingRouterType.COMBINED)
         val drivingOptions = DrivingOptions().apply {
             routesCount = 1
         }
         val vehicleOptions = VehicleOptions()
-
-        val points = buildList<RequestPoint> {
-            add(RequestPoint(Point(51.654232, 39.116771), RequestPointType.WAYPOINT, null, null))
-            add(RequestPoint(Point(56.833742, 60.635716), RequestPointType.WAYPOINT, null, null))
-        }
-
+        val points = getRoutePoints(startPoint, goalPoint)
 
         val drivingSession = drivingRouter.requestRoutes(
             points,
@@ -108,7 +123,54 @@ class MainActivity : AppCompatActivity() {
             vehicleOptions,
             drivingRouterListener
         )
+    }
 
+    private fun getRoutePoints(startPoint: Point, goalPoint: Point): List<RequestPoint> {
+        return buildList {
+            add(RequestPoint(startPoint, RequestPointType.WAYPOINT, null, null))
+            add(RequestPoint(goalPoint, RequestPointType.WAYPOINT, null, null))
+        }
+    }
+
+    private fun moveCamera(point: Point) {
+        map.move(CameraPosition(point, 14.0f, 0.0f, 0.0f))
+    }
+
+    private fun setPlacemarks(startPoint: Point, goalPoint: Point) {
+        val meImageProvider = ImageProvider.fromResource(this, R.drawable.me_placemark)
+        val me_placemark = mapView.mapWindow.map.mapObjects.addPlacemark().apply {
+            geometry = startPoint
+            setIcon(meImageProvider)
+        }
+
+        val mePlacemarkTapListener = MapObjectTapListener { _, point ->
+            Toast.makeText(
+                this@MainActivity,
+                "Вы здесь",
+                Toast.LENGTH_SHORT
+            ).show()
+            true
+        }
+
+        me_placemark.addTapListener(mePlacemarkTapListener)
+
+
+        val goalImageProvider = ImageProvider.fromResource(this, R.drawable.goal_placemark)
+        val goal_placemark = mapView.mapWindow.map.mapObjects.addPlacemark().apply {
+            geometry = goalPoint
+            setIcon(goalImageProvider)
+        }
+
+        val goalPlacemarkTapListener = MapObjectTapListener { _, point ->
+            Toast.makeText(
+                this@MainActivity,
+                "Точка прибытия",
+                Toast.LENGTH_SHORT
+            ).show()
+            true
+        }
+
+        goal_placemark.addTapListener(goalPlacemarkTapListener)
     }
 
 
@@ -189,4 +251,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    companion object {
+        private val GOAL_POINT = Point(56.833742, 60.635716)
+    }
 }

@@ -39,11 +39,10 @@
     ```
 2.  Откройте проект в **Android Studio**.
 3.  **Важно!** Для работы Yandex MapKit требуется API-ключ. Получите его на [странице разработчика Яндекс.Карт](https://developer.tech.yandex.ru/services/).
-4.  В файле `app/src/main/AndroidManifest.xml` замените `YOUR_YANDEX_MAPS_API_KEY` на ваш действительный ключ:
-    ```xml
-    <meta-data
-        android:name="yandex.maps.api.key"
-        android:value="YOUR_YANDEX_MAPS_API_KEY" />
+4.  В файле `app/src/main/java/com/sport/testtaskyamapkit/MainApplication.kt` замените `YOUR_YANDEX_MAPS_API_KEY` на ваш действительный ключ:
+    ```kotlin
+        MapKitFactory.setApiKey("YOUR_YANDEX_MAPS_API_KEY")
+        MapKitFactory.initialize(this)
     ```
 5.  Соберите и запустите приложение на устройстве или эмуляторе.
 
